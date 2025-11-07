@@ -1,12 +1,20 @@
 const std = @import("std");
 
 pub fn parse(comptime T: type, option: ParseOptions) ParseError!T {
+    var iterator = std.process.args();
+    return try parseWithIterator(T, option, &iterator);
+}
+
+pub fn parseWithIterator(comptime T: type, option: ParseOptions, args_iter: anytype) ParseError!T {
+    if (!@hasDecl(@TypeOf(args_iter.*), "next")) @compileError("args_iter must have next() decl");
     if (@typeInfo(T) != .@"struct") @compileError("type passed to parse must be of type struct.");
+    const program_name = args_iter.next();
+    _ = program_name;
 
     var buf: [1024]u8 = undefined;
     var stderr_state = std.fs.File.stderr().writer(&buf);
     const self = ClaptainParser{
-        .writer = &stderr_state.interface,
+        .writer = if (option.override_writer) |writer| writer else &stderr_state.interface,
         .option = option,
     };
     defer self.writer.flush() catch {};
@@ -24,48 +32,64 @@ pub fn parse(comptime T: type, option: ParseOptions) ParseError!T {
 
         if (is_optional or has_default) {
             defer fields_seen[i] = true;
-            const ptr = field.default_value_ptr orelse continue;
-            @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(ptr))).*;
+            if (field.default_value_ptr) |ptr| {
+                @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(ptr))).*;
+            }
+        }
+        if (is_optional and !has_default) {
+            // when we do ` = undefined;`, I was seeing false instead of null, maybe because of how zig handles uninitialized memory?
+            @field(result, field.name) = null;
         }
     }
+    // std.debug.print("🚀 fields_seen: {any}\n", .{fields_seen});
 
-    var args = std.process.args();
-    _ = args.next(); // skip exe name
-
-    while (args.next()) |arg| {
+    while (args_iter.next()) |arg| {
         if (std.mem.eql(u8, arg, option.usage_flag)) {
             self.printUsage(T) catch {};
-            std.process.exit(option.exit_status_code);
+            return ParseError.UsageRequested;
         }
+        // std.debug.print("🚀 args value on args_iter.next(): {s}\n", .{arg});
         try self.parseFieldValue(T, &result, &fields_seen, arg);
+
+        // std.debug.print("🚀 after parse, field_seen {any}\n", .{fields_seen});
+        // std.debug.print("🚀 after parse, result = {any}\n", .{result});
     }
 
     // Verify all required arguments are provided
     var missing_arg = false;
     inline for (fields, 0..) |field, i| {
         if (!fields_seen[i]) {
+            // std.debug.print("🚀 this is missing?? {s}\n", .{field.name});
             missing_arg = true;
             try self.print("required argument '{s}' missing\n", .{field.name});
         }
     }
     if (missing_arg) {
         self.printUsage(T) catch {};
-        std.process.exit(option.exit_status_code);
+        return ParseError.RequiredArgsNotProvided;
     }
+    // std.debug.print("🚀 return result {any}\n", .{result});
 
     return result;
 }
 
 pub const ParseError = error{
+    UsageRequested,
     PrintFailed,
     InvalidArgument,
     RequiredArgsNotProvided,
 };
 
-const ParseOptions = struct {
+pub const ParseOptions = struct {
     usage_flag: []const u8 = "--help",
-    allow_invalid: bool = true,
-    exit_status_code: u8 = 1,
+    allow_invalid: bool = false,
+    override_writer: ?*std.Io.Writer = null,
+
+    pub fn withWriter(self: ParseOptions, writer: *std.Io.Writer) ParseOptions {
+        var options = self;
+        options.override_writer = writer;
+        return options;
+    }
 };
 
 const ClaptainParser = struct {
@@ -76,6 +100,8 @@ const ClaptainParser = struct {
         const index_of_equal = std.mem.indexOf(u8, arg, "=");
         const field_identifier = if (index_of_equal) |idx| arg[0..idx] else arg;
 
+        // std.debug.print("🚀 field_identifier: {s}\n", .{field_identifier});
+
         if (!std.mem.startsWith(u8, field_identifier, "--") and !self.option.allow_invalid) {
             try self.print("options should start with `--` found `{s}`", .{field_identifier});
             return ParseError.InvalidArgument;
@@ -84,14 +110,18 @@ const ClaptainParser = struct {
         const field_name = field_identifier[2..];
         var field_found = false;
 
+        // std.debug.print("🚀 field_name: {s}\n", .{field_name});
+
         inline for (std.meta.fields(T), 0..) |field, i| {
             if (std.mem.eql(u8, field.name, field_name)) {
+                defer fields_seen[i] = true;
                 field_found = true;
-                defer if (field_found) {
-                    fields_seen[i] = true;
-                };
 
-                switch (@typeInfo(field.type)) {
+                const actual_type = if (@typeInfo(field.type) == .optional) @typeInfo(field.type).optional.child else field.type;
+
+                // std.debug.print("🚀 FOUND!! field_name, with field.name: {s}\n", .{field.name});
+
+                switch (@typeInfo(actual_type)) {
                     .pointer => |ptr| {
                         const is_u8_slice = ptr.size == .slice and ptr.child == u8;
                         if (!is_u8_slice) @compileError("only []u8 pointer type is supported for string fields.");
@@ -130,8 +160,11 @@ const ClaptainParser = struct {
                         }
                     },
                     .bool => {
+                        // std.debug.print("🚀 up to bool: iddex_of_eql = {any}\n", .{index_of_equal});
                         if (index_of_equal == null) {
+                            // std.debug.print("🚀 no =, so bool = true \n", .{});
                             @field(result, field.name) = true;
+                            // std.debug.print("🚀 result now {any} \n", .{result});
                             return;
                         }
                         const value_str = arg[index_of_equal.? + 1 ..];
@@ -230,23 +263,17 @@ const ClaptainParser = struct {
     fn printAdditionalUsageInfo(self: *const @This(), has_default: bool, is_required: bool, field: std.builtin.Type.StructField) ParseError!void {
         try self.print("\t(required={any})", .{is_required});
         if (has_default) {
+            const is_optional = @typeInfo(field.type) == .optional;
+            const actual_type = if (is_optional) @typeInfo(field.type).optional.child else field.type;
+
             const value = @as(*const field.type, @ptrCast(@alignCast(field.default_value_ptr.?))).*;
-            switch (@typeInfo(field.type)) {
+            switch (@typeInfo(actual_type)) {
                 .@"enum" => try self.print("\t(default: \"{s}\")", .{@tagName(value)}),
                 .bool, .int, .float => try self.print("\t(default: \"{any}\")", .{value}),
-                .optional => {
-                    // TODO(seg4lt) - can we just recursively call printAdditionalUsageInfo here?
-                    // types are screwed, need to experiment further
-                    if (value) |unwrapped| {
-                        const child_type = @typeInfo(field.type).optional.child;
-                        switch (@typeInfo(child_type)) {
-                            .@"enum" => try self.print("\t(default: \"{s}\")", .{@tagName(unwrapped)}),
-                            .bool, .int, .float => try self.print("\t(default: \"{any}\")", .{unwrapped}),
-                            else => try self.print("\t(default: \"{s}\")", .{unwrapped}),
-                        }
-                    }
-                },
-                else => try self.print("\t(default: \"{s}\")", .{value}),
+                else => switch(is_optional) {
+                    false => try self.print("\t(default: \"{s}\")", .{value}),
+                    true => try self.print("\t(default: \"{s}\")", .{value.?}),
+                }
             }
         }
     }
@@ -258,3 +285,25 @@ const ClaptainParser = struct {
         s.writer.flush() catch return ParseError.PrintFailed;
     }
 };
+
+// pub fn structPrinter(value: anytype) void {
+//     const T = @TypeOf(value);
+//     inline for (std.meta.fields(T)) |field| {
+//         switch (@typeInfo(field.type)) {
+//             .pointer => |ptr| {
+//                 if (ptr.size == .slice and ptr.child == u8) {
+//                     std.log.debug("{s:>20} = `{s}`", .{ field.name, @field(value, field.name) });
+//                     continue;
+//                 }
+//                 structPrinter(@field(value, field.name).*);
+//             },
+//             else => std.log.debug("{s:>20} = `{any}`", .{ field.name, @field(value, field.name) }),
+//         }
+//     }
+// }
+
+test {
+    const testing = std.testing;
+    _ = testing.refAllDeclsRecursive(@This());
+    _ = testing.refAllDeclsRecursive(@import("./tests/bool_test.zig"));
+}
