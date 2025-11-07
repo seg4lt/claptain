@@ -12,13 +12,20 @@ const CliArgs = struct {
     opt_bool: ?bool,
     opt_bool_default: ?bool = true,
     
-    
     enum_required: enum { foo, bar },
     enum_default: enum { foo, bar } = .bar,
     opt_enum: ?enum { foo, bar },
     opt_enum_default: ?enum { foo, bar } = .foo,
     
+    int_required: i32,
+    int_default: i32 = 42,
+    opt_int: ?i32,
+    opt_int_default: ?i32 = 7,
     
+    float_required: f64,
+    float_default: f64 = 3.14,
+    opt_float: ?f64,
+    opt_float_default: ?f64 = 2.71,
 };
 
 pub fn main() !void {

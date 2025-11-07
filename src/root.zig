@@ -209,6 +209,18 @@ const ClaptainParser = struct {
                     try self.printAdditionalUsageInfo(has_default, is_required, field);
                     try self.print("\n", .{});
                 },
+                .int => {
+                    try self.print("\t", .{});
+                    try self.print("--{s}=<int>", .{field.name});
+                    try self.printAdditionalUsageInfo(has_default, is_required, field);
+                    try self.print("\n", .{});
+                },
+                .float => {
+                    try self.print("\t", .{});
+                    try self.print("--{s}=<float>", .{field.name});
+                    try self.printAdditionalUsageInfo(has_default, is_required, field);
+                    try self.print("\n", .{});
+                },
                 else => |tag| std.debug.panic("not implemented: {s}\n", .{@tagName(tag)}),
             }
         }
@@ -221,7 +233,7 @@ const ClaptainParser = struct {
             const value = @as(*const field.type, @ptrCast(@alignCast(field.default_value_ptr.?))).*;
             switch (@typeInfo(field.type)) {
                 .@"enum" => try self.print("\t(default: \"{s}\")", .{@tagName(value)}),
-                .bool => try self.print("\t(default: \"{any}\")", .{value}),
+                .bool, .int, .float => try self.print("\t(default: \"{any}\")", .{value}),
                 .optional => {
                     // TODO(seg4lt) - can we just recursively call printAdditionalUsageInfo here?
                     // types are screwed, need to experiment further
@@ -229,7 +241,7 @@ const ClaptainParser = struct {
                         const child_type = @typeInfo(field.type).optional.child;
                         switch (@typeInfo(child_type)) {
                             .@"enum" => try self.print("\t(default: \"{s}\")", .{@tagName(unwrapped)}),
-                            .bool => try self.print("\t(default: \"{any}\")", .{unwrapped}),
+                            .bool, .int, .float => try self.print("\t(default: \"{any}\")", .{unwrapped}),
                             else => try self.print("\t(default: \"{s}\")", .{unwrapped}),
                         }
                     }
