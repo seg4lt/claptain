@@ -268,12 +268,18 @@ const ClaptainParser = struct {
 
             const value = @as(*const field.type, @ptrCast(@alignCast(field.default_value_ptr.?))).*;
             switch (@typeInfo(actual_type)) {
-                .@"enum" => try self.print("\t(default: \"{s}\")", .{@tagName(value)}),
-                .bool, .int, .float => try self.print("\t(default: \"{any}\")", .{value}),
-                else => switch(is_optional) {
+                .@"enum" => switch (is_optional) {
+                    false => try self.print("\t(default: \"{s}\")", .{@tagName(value)}),
+                    true => try self.print("\t(default: \"{s}\")", .{@tagName(value.?)}),
+                },
+                .bool, .int, .float => switch (is_optional) {
+                    false => try self.print("\t(default: {any})", .{value}),
+                    true => try self.print("\t(default: {any})", .{value.?}),
+                },
+                else => switch (is_optional) {
                     false => try self.print("\t(default: \"{s}\")", .{value}),
                     true => try self.print("\t(default: \"{s}\")", .{value.?}),
-                }
+                },
             }
         }
     }
@@ -306,4 +312,6 @@ test {
     const testing = std.testing;
     _ = testing.refAllDeclsRecursive(@This());
     _ = testing.refAllDeclsRecursive(@import("./tests/bool_test.zig"));
+    _ = testing.refAllDeclsRecursive(@import("./tests/string_test.zig"));
+    _ = testing.refAllDeclsRecursive(@import("./tests/enum_test.zig"));
 }

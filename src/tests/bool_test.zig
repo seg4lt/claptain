@@ -9,10 +9,11 @@ const ParseOptions = root.ParseOptions;
 const ParseError = root.ParseError;
 
 pub const BoolRequiredNoDefault = struct {
-    bool_required: bool,
+    const ARG_TYPE = bool;
+    bool_required: ARG_TYPE,
 
     test "bool - flag without value (defaults to true)" {
-        try runTest(@This(), bool, .{
+        try runTest(@This(), ARG_TYPE, .{
             .args_str = "claptain --bool_required",
             .field_name = "bool_required",
             .expected_value = true,
@@ -20,7 +21,7 @@ pub const BoolRequiredNoDefault = struct {
         });
     }
     test "bool - explicit true" {
-        try runTest(@This(), bool, .{
+        try runTest(@This(), ARG_TYPE, .{
             .args_str = "claptain --bool_required=true",
             .field_name = "bool_required",
             .expected_value = true,
@@ -28,7 +29,7 @@ pub const BoolRequiredNoDefault = struct {
         });
     }
     test "bool - explicit false" {
-        try runTest(@This(), bool, .{
+        try runTest(@This(), ARG_TYPE, .{
             .args_str = "claptain --bool_required=false",
             .field_name = "bool_required",
             .expected_value = false,
@@ -37,7 +38,7 @@ pub const BoolRequiredNoDefault = struct {
     }
 
     test "bool - missing argument should error" {
-        try runTest(@This(), bool, .{
+        try runTest(@This(), ARG_TYPE, .{
             .args_str = "claptain",
             .field_name = "bool_required",
             .expected_value = false,
@@ -46,7 +47,7 @@ pub const BoolRequiredNoDefault = struct {
     }
 
     test "bool - invalid value should error" {
-        try runTest(@This(), bool, .{
+        try runTest(@This(), ARG_TYPE, .{
             .args_str = "claptain --bool_required=invalid",
             .field_name = "bool_required",
             .expected_value = false,

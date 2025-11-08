@@ -39,13 +39,57 @@ pub fn runTest(comptime A: type, comptime V: type, comptime tc: TestCase(V)) !vo
         return err;
     };
 
+    const field = @field(value, tc.field_name);
+    const is_optional = @typeInfo(@TypeOf(field)) == .optional;
+    const actual_type = if (is_optional) @typeInfo(@TypeOf(field)).optional.child else @TypeOf(field);
     const expected = tc.expected_value;
-    std.testing.expect(@field(value, tc.field_name) == expected) catch |err| {
-        std.debug.print("\nFailed: Expected {s}={any}, got={any}\n", .{
-            tc.field_name,
-            expected,
-            @field(value, tc.field_name),
-        });
-        return err;
-    };
+
+    switch (@typeInfo(actual_type)) {
+        .pointer => |ptr| {
+            if (!(ptr.size == .slice and ptr.child == u8)) std.debug.panic("not supported yet!!");
+
+            if (is_optional) {
+                if (expected == null) {
+                    std.testing.expect(field == null) catch |err| {
+                        std.debug.print("\nFailed: Expected {s}=null, got={any}\n", .{
+                            tc.field_name,
+                            field,
+                        });
+                        return err;
+                    };
+                    return;
+                }
+
+                std.testing.expectEqualSlices(ptr.child, expected.?, field.?) catch |err| {
+                    std.debug.print("\nFailed: Expected {s}={s}, got={s}\n", .{
+                        tc.field_name,
+                        expected.?,
+                        field.?,
+                    });
+                    return err;
+                };
+                return;
+            }
+
+            std.testing.expectEqualSlices(ptr.child, expected, field) catch |err| {
+                std.debug.print("\nFailed: Expected {s}={s}, got={s}\n", .{
+                    tc.field_name,
+                    expected,
+                    field,
+                });
+                return err;
+            };
+        },
+        .bool, .@"enum" => {
+            std.testing.expect(field == expected) catch |err| {
+                std.debug.print("\nFailed: Expected {s}={any}, got={any}\n", .{
+                    tc.field_name,
+                    expected,
+                    field,
+                });
+                return err;
+            };
+        },
+        else => |tag| std.debug.panic("not supported : {s}", .{@tagName(tag)}),
+    }
 }
