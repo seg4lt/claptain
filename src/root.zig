@@ -102,8 +102,14 @@ pub fn parseWithIterator(comptime T: type, option: ParseOptions, args_iter: anyt
     inline for (fields, 0..) |field, i| {
         if (!fields_seen[i]) {
             missing_arg = true;
-            // TODO(seg4lt) - need to get override name
-            try self.print("required argument '{s}' missing\n", .{field.name});
+            const field_name = blk: {
+                if (ClaptainParser.getArgInfo(T, field.name)) |arg_info| {
+                    const long_name = if (arg_info.long) |ln| ln else field.name;
+                    break :blk long_name;
+                }
+                break :blk field.name;
+            };
+            try self.print("required argument '{s}' missing\n", .{field_name});
         }
     }
     if (missing_arg) {
