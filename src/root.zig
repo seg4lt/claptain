@@ -310,22 +310,6 @@ const ClaptainParser = struct {
     }
 };
 
-// pub fn structPrinter(value: anytype) void {
-//     const T = @TypeOf(value);
-//     inline for (std.meta.fields(T)) |field| {
-//         switch (@typeInfo(field.type)) {
-//             .pointer => |ptr| {
-//                 if (ptr.size == .slice and ptr.child == u8) {
-//                     std.log.debug("{s:>20} = `{s}`", .{ field.name, @field(value, field.name) });
-//                     continue;
-//                 }
-//                 structPrinter(@field(value, field.name).*);
-//             },
-//             else => std.log.debug("{s:>20} = `{any}`", .{ field.name, @field(value, field.name) }),
-//         }
-//     }
-// }
-
 test {
     const testing = std.testing;
     _ = testing.refAllDeclsRecursive(@This());
@@ -333,4 +317,5 @@ test {
     _ = testing.refAllDeclsRecursive(@import("./tests/string_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/enum_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/int_test.zig"));
+    _ = testing.refAllDeclsRecursive(@import("./tests/float_test.zig"));
 }
