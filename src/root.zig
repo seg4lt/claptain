@@ -437,4 +437,5 @@ test {
     _ = testing.refAllDeclsRecursive(@import("./tests/int_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/float_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/metadata_test.zig"));
+    _ = testing.refAllDeclsRecursive(@import("./tests/multi_arg_test.zig"));
 }
