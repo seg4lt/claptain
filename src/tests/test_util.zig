@@ -80,7 +80,7 @@ pub fn runTest(comptime A: type, comptime V: type, comptime tc: TestCase(V)) !vo
                 return err;
             };
         },
-        .bool, .@"enum" => {
+        .bool, .@"enum", .int => {
             std.testing.expect(field == expected) catch |err| {
                 std.debug.print("\nFailed: Expected {s}={any}, got={any}\n", .{
                     tc.field_name,

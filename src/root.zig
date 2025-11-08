@@ -178,6 +178,24 @@ const ClaptainParser = struct {
                             return ParseError.InvalidArgument;
                         }
                     },
+                    .int, .float => {
+                        if (index_of_equal == null) {
+                            try self.print("Missing value for argument '{s}'\n", .{field_name});
+                            self.printUsage(T) catch {};
+                            return ParseError.InvalidArgument;
+                        }
+                        const value_str = arg[index_of_equal.? + 1 ..];
+                        const value = switch (@typeInfo(actual_type)) {
+                            .int => std.fmt.parseInt(actual_type, value_str, 10),
+                            .float => std.fmt.parseFloat(actual_type, value_str),
+                            else => std.debug.panic("** bug ** only int and float type should come here... ", .{}),
+                        } catch {
+                            try self.print("Invalid number value '{s}' for argument '{s}'\n", .{ value_str, field_name });
+                            self.printUsage(T) catch {};
+                            return ParseError.InvalidArgument;
+                        };
+                        @field(result, field.name) = value;
+                    },
                     else => |tag| std.debug.panic("not implemented: {s}\n", .{@tagName(tag)}),
                 }
                 break;
@@ -314,4 +332,5 @@ test {
     _ = testing.refAllDeclsRecursive(@import("./tests/bool_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/string_test.zig"));
     _ = testing.refAllDeclsRecursive(@import("./tests/enum_test.zig"));
+    _ = testing.refAllDeclsRecursive(@import("./tests/int_test.zig"));
 }
