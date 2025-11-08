@@ -8,6 +8,7 @@ pub fn parse(comptime T: type, option: ParseOptions) ParseError!T {
 pub fn parseWithIterator(comptime T: type, option: ParseOptions, args_iter: anytype) ParseError!T {
     if (!@hasDecl(@TypeOf(args_iter.*), "next")) @compileError("args_iter must have next() decl");
     if (@typeInfo(T) != .@"struct") @compileError("type passed to parse must be of type struct.");
+
     const program_name = args_iter.next();
     _ = program_name;
 
@@ -41,34 +42,28 @@ pub fn parseWithIterator(comptime T: type, option: ParseOptions, args_iter: anyt
             @field(result, field.name) = null;
         }
     }
-    // std.debug.print("🚀 fields_seen: {any}\n", .{fields_seen});
 
     while (args_iter.next()) |arg| {
         if (std.mem.eql(u8, arg, option.usage_flag)) {
-            self.printUsage(T) catch {};
+            try self.printUsage(T);
             return ParseError.UsageRequested;
         }
-        // std.debug.print("🚀 args value on args_iter.next(): {s}\n", .{arg});
-        try self.parseFieldValue(T, &result, &fields_seen, arg);
 
-        // std.debug.print("🚀 after parse, field_seen {any}\n", .{fields_seen});
-        // std.debug.print("🚀 after parse, result = {any}\n", .{result});
+        try self.parseFieldValue(T, &result, &fields_seen, arg);
     }
 
     // Verify all required arguments are provided
     var missing_arg = false;
     inline for (fields, 0..) |field, i| {
         if (!fields_seen[i]) {
-            // std.debug.print("🚀 this is missing?? {s}\n", .{field.name});
             missing_arg = true;
             try self.print("required argument '{s}' missing\n", .{field.name});
         }
     }
     if (missing_arg) {
-        self.printUsage(T) catch {};
+        try self.printUsage(T);
         return ParseError.RequiredArgsNotProvided;
     }
-    // std.debug.print("🚀 return result {any}\n", .{result});
 
     return result;
 }
@@ -84,12 +79,6 @@ pub const ParseOptions = struct {
     usage_flag: []const u8 = "--help",
     allow_invalid: bool = false,
     override_writer: ?*std.Io.Writer = null,
-
-    pub fn withWriter(self: ParseOptions, writer: *std.Io.Writer) ParseOptions {
-        var options = self;
-        options.override_writer = writer;
-        return options;
-    }
 };
 
 const ClaptainParser = struct {
@@ -100,8 +89,6 @@ const ClaptainParser = struct {
         const index_of_equal = std.mem.indexOf(u8, arg, "=");
         const field_identifier = if (index_of_equal) |idx| arg[0..idx] else arg;
 
-        // std.debug.print("🚀 field_identifier: {s}\n", .{field_identifier});
-
         if (!std.mem.startsWith(u8, field_identifier, "--") and !self.option.allow_invalid) {
             try self.print("options should start with `--` found `{s}`", .{field_identifier});
             return ParseError.InvalidArgument;
@@ -110,16 +97,12 @@ const ClaptainParser = struct {
         const field_name = field_identifier[2..];
         var field_found = false;
 
-        // std.debug.print("🚀 field_name: {s}\n", .{field_name});
-
         inline for (std.meta.fields(T), 0..) |field, i| {
             if (std.mem.eql(u8, field.name, field_name)) {
                 defer fields_seen[i] = true;
                 field_found = true;
 
                 const actual_type = if (@typeInfo(field.type) == .optional) @typeInfo(field.type).optional.child else field.type;
-
-                // std.debug.print("🚀 FOUND!! field_name, with field.name: {s}\n", .{field.name});
 
                 switch (@typeInfo(actual_type)) {
                     .pointer => |ptr| {
@@ -128,7 +111,7 @@ const ClaptainParser = struct {
 
                         if (index_of_equal == null) {
                             try self.print("Missing value for argument '{s}'\n", .{field_name});
-                            self.printUsage(T) catch {};
+                            try self.printUsage(T);
                             return ParseError.InvalidArgument;
                         }
                         const initial_value = arg[index_of_equal.? + 1 ..];
@@ -140,8 +123,8 @@ const ClaptainParser = struct {
                     },
                     .@"enum" => |enum_info| {
                         if (index_of_equal == null) {
-                            try self.print("Missing value for argument '{s}'\n", .{field_name});
-                            self.printUsage(T) catch {};
+                            try self.print("missing value for argument '{s}'\n", .{field_name});
+                            try self.printUsage(T);
                             return ParseError.InvalidArgument;
                         }
                         const value_str = arg[index_of_equal.? + 1 ..];
@@ -154,17 +137,14 @@ const ClaptainParser = struct {
                             }
                         }
                         if (!matched) {
-                            try self.print("Invalid value '{s}' for argument '{s}'\n", .{ value_str, field_name });
-                            self.printUsage(T) catch {};
+                            try self.print("invalid value '{s}' for argument '{s}'\n", .{ value_str, field_name });
+                            try self.printUsage(T);
                             return ParseError.InvalidArgument;
                         }
                     },
                     .bool => {
-                        // std.debug.print("🚀 up to bool: iddex_of_eql = {any}\n", .{index_of_equal});
                         if (index_of_equal == null) {
-                            // std.debug.print("🚀 no =, so bool = true \n", .{});
                             @field(result, field.name) = true;
-                            // std.debug.print("🚀 result now {any} \n", .{result});
                             return;
                         }
                         const value_str = arg[index_of_equal.? + 1 ..];
@@ -181,7 +161,7 @@ const ClaptainParser = struct {
                     .int, .float => {
                         if (index_of_equal == null) {
                             try self.print("Missing value for argument '{s}'\n", .{field_name});
-                            self.printUsage(T) catch {};
+                            try self.printUsage(T);
                             return ParseError.InvalidArgument;
                         }
                         const value_str = arg[index_of_equal.? + 1 ..];
@@ -191,7 +171,7 @@ const ClaptainParser = struct {
                             else => std.debug.panic("** bug ** only int and float type should come here... ", .{}),
                         } catch {
                             try self.print("Invalid number value '{s}' for argument '{s}'\n", .{ value_str, field_name });
-                            self.printUsage(T) catch {};
+                            try self.printUsage(T);
                             return ParseError.InvalidArgument;
                         };
                         @field(result, field.name) = value;
@@ -222,13 +202,17 @@ const ClaptainParser = struct {
     }
 
     fn printUsageForStructType(self: *const @This(), comptime T: type) ParseError!void {
+        const PRINT_BUF_LENGTH = 120;
+        const PRINT_ARGS_INFO_LENGTH = 50;
+        var print_line_buf: [PRINT_BUF_LENGTH]u8 = .{' '} ** PRINT_BUF_LENGTH;
+        const print_args_info_buf = print_line_buf[0..PRINT_ARGS_INFO_LENGTH];
+        const print_additional_info_buf = print_line_buf[PRINT_ARGS_INFO_LENGTH..];
+
         inline for (std.meta.fields(T)) |field| {
-            const actual_type = if (@typeInfo(field.type) == .optional)
-                @typeInfo(field.type).optional.child
-            else
-                field.type;
+            print_line_buf = .{' '} ** PRINT_BUF_LENGTH;
 
             const is_optional = @typeInfo(field.type) == .optional;
+            const actual_type = if (is_optional) @typeInfo(field.type).optional.child else field.type;
             const has_default = field.default_value_ptr != null;
             const is_required = !is_optional and !has_default;
 
@@ -237,70 +221,76 @@ const ClaptainParser = struct {
                     const is_u8_slice = ptr.size == .slice and ptr.child == u8;
                     if (!is_u8_slice) @compileError("only []u8 pointer type is supported for string fields.");
 
-                    try self.print("\t", .{});
-                    try self.print("--{s}=<string>", .{field.name});
-                    try self.printAdditionalUsageInfo(has_default, is_required, field);
-                    try self.print("\n", .{});
+                    try self.bufPrint(print_args_info_buf, "--{s}=<str>", .{field.name});
+                    try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
                 .bool => {
-                    try self.print("\t", .{});
-                    try self.print("--{s} or --{s}=true|false", .{ field.name, field.name });
-                    try self.printAdditionalUsageInfo(has_default, is_required, field);
-                    try self.print("\n", .{});
+                    try self.bufPrint(print_args_info_buf, "--{s}=true|false", .{field.name});
+                    try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
                 .@"enum" => |enum_info| {
-                    try self.print("\t", .{});
-                    try self.print("--{s}=", .{field.name});
+                    try self.bufPrint(print_args_info_buf, "--{s}=", .{field.name});
+                    var pos = field.name.len + 3; // 3 == len of "--" + "="
                     inline for (enum_info.fields, 0..) |enum_field, i| {
-                        try self.print("{s}", .{enum_field.name});
+                        try self.bufPrint(print_args_info_buf[pos..], "{s}", .{enum_field.name});
+                        pos += enum_field.name.len;
                         if (i < enum_info.fields.len - 1) {
-                            try self.print("|", .{});
+                            try self.bufPrint(print_args_info_buf[pos..], "|", .{});
+                            pos += 1;
                         }
                     }
-                    try self.printAdditionalUsageInfo(has_default, is_required, field);
-                    try self.print("\n", .{});
+                    try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
                 .int => {
-                    try self.print("\t", .{});
-                    try self.print("--{s}=<int>", .{field.name});
-                    try self.printAdditionalUsageInfo(has_default, is_required, field);
-                    try self.print("\n", .{});
+                    try self.bufPrint(print_args_info_buf, "--{s}=<int>", .{field.name});
+                    try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
                 .float => {
-                    try self.print("\t", .{});
-                    try self.print("--{s}=<float>", .{field.name});
-                    try self.printAdditionalUsageInfo(has_default, is_required, field);
-                    try self.print("\n", .{});
+                    try self.bufPrint(print_args_info_buf, "--{s}=<float>", .{field.name});
+                    try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
                 else => |tag| std.debug.panic("not implemented: {s}\n", .{@tagName(tag)}),
             }
+            try self.print("{s}\n", .{print_line_buf});
+            try self.flush();
         }
         try self.flush();
     }
 
-    fn printAdditionalUsageInfo(self: *const @This(), has_default: bool, is_required: bool, field: std.builtin.Type.StructField) ParseError!void {
-        try self.print("\t(required={any})", .{is_required});
-        if (has_default) {
-            const is_optional = @typeInfo(field.type) == .optional;
-            const actual_type = if (is_optional) @typeInfo(field.type).optional.child else field.type;
+    fn printAdditionalUsageInfo(self: *const @This(), buf: []u8, has_default: bool, is_required: bool, field: std.builtin.Type.StructField) ParseError!void {
+        const REQUIRED_PRINT_BUF_LENGTH = 20;
+        const required_print_buf = buf[0..REQUIRED_PRINT_BUF_LENGTH];
+        try self.bufPrint(required_print_buf, "({s})", .{if (is_required) "required" else "optional"});
 
-            const value = @as(*const field.type, @ptrCast(@alignCast(field.default_value_ptr.?))).*;
-            switch (@typeInfo(actual_type)) {
-                .@"enum" => switch (is_optional) {
-                    false => try self.print("\t(default: \"{s}\")", .{@tagName(value)}),
-                    true => try self.print("\t(default: \"{s}\")", .{@tagName(value.?)}),
-                },
-                .bool, .int, .float => switch (is_optional) {
-                    false => try self.print("\t(default: {any})", .{value}),
-                    true => try self.print("\t(default: {any})", .{value.?}),
-                },
-                else => switch (is_optional) {
-                    false => try self.print("\t(default: \"{s}\")", .{value}),
-                    true => try self.print("\t(default: \"{s}\")", .{value.?}),
-                },
-            }
+        if (!has_default) return;
+
+        const remaining_buf = buf[REQUIRED_PRINT_BUF_LENGTH..];
+
+        const is_optional = @typeInfo(field.type) == .optional;
+        const actual_type = if (is_optional) @typeInfo(field.type).optional.child else field.type;
+
+        const value = @as(*const field.type, @ptrCast(@alignCast(field.default_value_ptr.?))).*;
+        switch (@typeInfo(actual_type)) {
+            .@"enum" => switch (is_optional) {
+                false => try self.bufPrint(remaining_buf, "(default: \"{s}\")", .{@tagName(value)}),
+                true => try self.bufPrint(remaining_buf, "(default: \"{s}\")", .{@tagName(value.?)}),
+            },
+            .bool, .int, .float => switch (is_optional) {
+                false => try self.bufPrint(remaining_buf, "(default: {any})", .{value}),
+                true => try self.bufPrint(remaining_buf, "(default: {any})", .{value.?}),
+            },
+            else => switch (is_optional) {
+                false => try self.bufPrint(remaining_buf, "(default: \"{s}\")", .{value}),
+                true => try self.bufPrint(remaining_buf, "(default: \"{s}\")", .{value.?}),
+            },
         }
     }
+
+    fn bufPrint(self: *const @This(), buf: []u8, comptime fmt: []const u8, args: anytype) ParseError!void {
+        _ = self;
+        _ = std.fmt.bufPrint(buf, fmt, args) catch return ParseError.PrintFailed;
+    }
+
     fn print(s: *const @This(), comptime fmt: []const u8, args: anytype) ParseError!void {
         s.writer.print(fmt, args) catch return ParseError.PrintFailed;
     }

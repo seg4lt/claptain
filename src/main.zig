@@ -22,10 +22,10 @@ const CliArgs = struct {
     opt_int: ?i32,
     opt_int_default: ?i32 = 7,
     
-    // float_required: f64,
-    // float_default: f64 = 3.14,
-    // opt_float: ?f64,
-    // opt_float_default: ?f64 = 2.71,
+    float_required: f64,
+    float_default: f64 = 3.14,
+    opt_float: ?f64,
+    opt_float_default: ?f64 = 2.71,
 };
 
 pub fn main() !void {
