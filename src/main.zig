@@ -2,30 +2,15 @@ const std = @import("std");
 const claptain = @import("claptain");
 
 const CliArgs = struct {
-    const_u8_required: []const u8,
-    const_u8_default: []const u8 = "const_u8_default",
-    opt_const_u8_default: ?[]const u8 = "opt_const_u8_default",
-    opt_const_u8: ?[]const u8,
-    
-    bool_required: bool,
-    bool_default: bool = false,
-    opt_bool: ?bool,
-    opt_bool_default: ?bool = true,
-    
-    enum_required: enum { foo, bar },
-    enum_default: enum { foo, bar } = .bar,
-    opt_enum: ?enum { foo, bar },
-    opt_enum_default: ?enum { foo, bar } = .foo,
-    
-    int_required: i32,
-    int_default: i32 = 42,
-    opt_int: ?i32,
-    opt_int_default: ?i32 = 7,
-    
-    float_required: f64,
-    float_default: f64 = 3.14,
-    opt_float: ?f64,
-    opt_float_default: ?f64 = 2.71,
+    src_path: []const u8,
+    happy: ?bool = null,
+
+    pub const __claptain_metadata: claptain.Metadata(@This()) = .{
+        .src_path = .{
+            .short = "s",
+            .long = "srcPath",
+        },
+    };
 };
 
 pub fn main() !void {
