@@ -41,6 +41,7 @@ const CliArgs = struct {
         .src_path = .{
             .short = "s",      // optional - you can add this if you want to have a short flag
             .long = "srcPath", // optional - if you want to override your long flag name
+            .description = "Path to the source directory", // optional - help text for this argument
         },
         // you can see override for happy (.happy) is also optional
         // override only if you want to change the default behavior
@@ -92,7 +93,6 @@ const exe = b.addExecutable(.{
 
 - [ ] Add option to maybe not print at all?
 - [ ] Add capture for last part of args e.g. `myprog [options] <remianing>`. e.g. `grep -rni "pattern_to_search" "dir_to_search" "another_dir_to_search"`
-- [ ] Support for descriptive help messages
 - [ ] Maybe add a option to use kebab case on options, so you don't need to override if you want kebab case?
 - [ ] Support for args that can accept array of things
 - [ ] Chain commands for bool type e.g. `grep -rni`

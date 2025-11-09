@@ -10,6 +10,9 @@ const CliArgs = struct {
             .short = "s",
             .long = "srcPath",
         },
+        .happy = .{
+            .description = "Enable happy mode for processing",
+        },
     };
 };
 

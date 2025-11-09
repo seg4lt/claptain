@@ -43,6 +43,7 @@ pub fn Metadata(comptime T: type) type {
 pub const ArgInfo = struct {
     short: ?[]const u8 = null,
     long: ?[]const u8 = null,
+    description: ?[]const u8 = null,
 };
 
 pub fn parse(comptime T: type, option: ParseOptions) ParseError!T {
@@ -276,6 +277,12 @@ const ClaptainParser = struct {
                         if (std.mem.eql(u8, long_name, arg_name)) {
                             return current_field_name;
                         }
+                    } else {
+                        if (std.mem.eql(u8, current_field_name, arg_name)) {
+                            return current_field_name;
+                        }
+                    }
+                    if (mf.long != null and std.mem.eql(u8, current_field_name, arg_name)) {
                         return ParseError.InvalidArgument;
                     }
                 }
@@ -284,7 +291,6 @@ const ClaptainParser = struct {
                         if (std.mem.eql(u8, short_name, arg_name)) {
                             return current_field_name;
                         }
-                        return ParseError.InvalidArgument;
                     }
                 }
             }
@@ -367,6 +373,13 @@ const ClaptainParser = struct {
             }
             try self.print("{s}\n", .{print_line_buf});
             try self.flush();
+
+            if (getArgInfo(T, field.name)) |arg_info| {
+                if (arg_info.description) |desc| {
+                    try self.print("\t{s}\n", .{desc});
+                    try self.flush();
+                }
+            }
         }
         try self.flush();
     }
