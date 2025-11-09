@@ -247,7 +247,7 @@ const ClaptainParser = struct {
                 const value = switch (@typeInfo(actual_type)) {
                     .int => std.fmt.parseInt(actual_type, value_str, 10),
                     .float => std.fmt.parseFloat(actual_type, value_str),
-                    else => std.debug.panic("** bug ** only int and float type should come here... ", .{}),
+                    else => |tag| @compileError(tag ++ " ** bug ** this should not happen at all"),
                 } catch {
                     try self.print("invalid number value '{s}' for argument '{s}'\n", .{ value_str, arg_field_name });
                     try self.printUsage(S);
@@ -255,7 +255,7 @@ const ClaptainParser = struct {
                 };
                 @field(result, field.name) = value;
             },
-            else => |tag| std.debug.panic("not implemented: {s}\n", .{@tagName(tag)}),
+            else => |tag| @compileError(tag ++ " not supported"),
         }
         return true;
     }
@@ -363,7 +363,7 @@ const ClaptainParser = struct {
                     _ = try self.bufPrint(print_args_info_buf[print_count..], "float", .{});
                     try self.printAdditionalUsageInfo(print_additional_info_buf, has_default, is_required, field);
                 },
-                else => |tag| std.debug.panic("not implemented: {s}\n", .{@tagName(tag)}),
+                else => |tag| @compileError(tag ++ " not supported yet"),
             }
             try self.print("{s}\n", .{print_line_buf});
             try self.flush();

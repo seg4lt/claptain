@@ -90,6 +90,7 @@ const exe = b.addExecutable(.{
 
 ## TODO
 
+- [ ] Add option to maybe not print at all?
 - [ ] Add capture for last part of args e.g. `myprog [options] <remianing>`. e.g. `grep -rni "pattern_to_search" "dir_to_search" "another_dir_to_search"`
 - [ ] Support for descriptive help messages
 - [ ] Maybe add a option to use kebab case on options, so you don't need to override if you want kebab case?
